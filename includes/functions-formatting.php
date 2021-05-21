@@ -51,23 +51,28 @@ function yourls_string2htmlid( $string ) {
 }
 
 /**
- * Make sure a link keyword (ie "1fv" as in "http://sho.rt/1fv") is valid.
+ * Make sure a link keyword (ie "1fv" as in "http://sho.rt/1fv") is acceptable
  *
- */
-function yourls_sanitize_string( $string ) {
-	// make a regexp pattern with the shorturl charset, and remove everything but this
-	$pattern = yourls_make_regexp_pattern( yourls_get_shorturl_charset() );
-	$valid = (string) substr( preg_replace( '![^'.$pattern.']!', '', $string ), 0, 199 );
-
-	return yourls_apply_filter( 'sanitize_string', $valid, $string );
-}
-
-/**
- * Alias function. I was always getting it wrong.
+ * If we are ADDING or EDITING a short URL, the keyword must comply to the short URL charset: every
+ * character that doesn't belong to it will be removed.
+ * But otherwise we must have a more conservative approach: we could be checking for a keyword that
+ * was once valid but now the short URL charset has changed. In such a case, we are treating the keyword for what
+ * it is: just a part of a URL, hence sanitize it as a URL.
  *
+ * @param  string $keyword                        short URL keyword
+ * @param  bool   $restrict_to_shorturl_charset   Optional, default false. True if we want the keyword to comply to short URL charset
+ * @return string                                 The sanitized keyword
  */
-function yourls_sanitize_keyword( $keyword ) {
-	return yourls_sanitize_string( $keyword );
+function yourls_sanitize_keyword( $keyword, $restrict_to_shorturl_charset = false ) {
+    if( $restrict_to_shorturl_charset === true ) {
+        // make a regexp pattern with the shorturl charset, and remove everything but this
+        $pattern = yourls_make_regexp_pattern( yourls_get_shorturl_charset() );
+        $valid = (string) substr( preg_replace( '![^'.$pattern.']!', '', $keyword ), 0, 199 );
+    } else {
+        $valid = yourls_sanitize_url( $keyword );
+    }
+
+	return yourls_apply_filter( 'sanitize_string', $valid, $keyword, $restrict_to_shorturl_charset );
 }
 
 /**
@@ -250,7 +255,7 @@ function yourls_seems_utf8( $str ) {
  * Check for PCRE /u modifier support. Stolen from WP.
  *
  * Just in case "PCRE is not compiled with PCRE_UTF8" which seems to happen
- * on some distros even for PHP 5.3
+ * on some distros
  *
  * @since 1.7.1
  *
@@ -487,14 +492,10 @@ function yourls_esc_url( $url, $context = 'display', $protocols = array() ) {
 	if ( '' == $url )
 		return $url;
 
-	// make sure there's a protocol, add http:// if not
-	if ( ! yourls_get_protocol( $url ) )
-		$url = 'http://'.$url;
-
 	$original_url = $url;
 
 	// force scheme and domain to lowercase - see issues 591 and 1630
-    $url = yourls_lowercase_scheme_domain( $url );
+    $url = yourls_normalize_uri( $url );
 
 	$url = preg_replace( '|[^a-z0-9-~+_.?#=!&;,/:%@$\|*\'()\[\]\\x80-\\xff]|i', '', $url );
 	// Previous regexp in YOURLS was '|[^a-z0-9-~+_.?\[\]\^#=!&;,/:%@$\|*`\'<>"()\\x80-\\xff\{\}]|i'
@@ -514,23 +515,29 @@ function yourls_esc_url( $url, $context = 'display', $protocols = array() ) {
 		$url = str_replace( "'", '&#039;', $url );
 	}
 
-	if ( ! is_array( $protocols ) or ! $protocols ) {
-		global $yourls_allowedprotocols;
-		$protocols = yourls_apply_filter( 'esc_url_protocols', $yourls_allowedprotocols );
-		// Note: $yourls_allowedprotocols is also globally filterable in functions-kses.php/yourls_kses_init()
-	}
+    // If there's a protocol, make sure it's OK
+    if( yourls_get_protocol($url) !== '' ) {
+        if ( ! is_array( $protocols ) or ! $protocols ) {
+            global $yourls_allowedprotocols;
+            $protocols = yourls_apply_filter( 'esc_url_protocols', $yourls_allowedprotocols );
+            // Note: $yourls_allowedprotocols is also globally filterable in functions-kses.php/yourls_kses_init()
+        }
 
-	if ( !yourls_is_allowed_protocol( $url, $protocols ) )
-		return '';
+        if ( !yourls_is_allowed_protocol( $url, $protocols ) )
+            return '';
 
-	// I didn't use KSES function kses_bad_protocol() because it doesn't work the way I liked (returns //blah from illegal://blah)
+        // I didn't use KSES function kses_bad_protocol() because it doesn't work the way I liked (returns //blah from illegal://blah)
+    }
 
 	return yourls_apply_filter( 'esc_url', $url, $original_url, $context );
 }
 
 
 /**
- * Lowercase scheme and domain of an URI - see issues 591, 1630, 1889
+ * Normalize a URI : lowercase scheme and domain, convert IDN to UTF8
+ *
+ * All in one example: 'HTTP://XN--mgbuq0c.Com/AbCd' -> 'http://طارق.com/AbCd'
+ * See issues 591, 1630, 1889, 2691
  *
  * This function is trickier than what seems to be needed at first
  *
@@ -539,13 +546,13 @@ function yourls_esc_url( $url, $context = 'display', $protocols = array() ) {
  * The general rule is that the scheme ("stuff://" or "stuff:") is case insensitive and should be lowercase. But then, depending on the
  * scheme, parts of what follows the scheme may or may not be case sensitive.
  *
- * Second, simply using parse_url() and its opposite http_build_url() (see functions-compat.php) is a pretty unsafe process:
+ * Second, simply using parse_url() and its opposite http_build_url() is a pretty unsafe process:
  *  - parse_url() can easily trip up on malformed or weird URLs
  *  - exploding a URL with parse_url(), lowercasing some stuff, and glueing things back with http_build_url() does not handle well
  *    "stuff:"-like URI [1] and can result in URLs ending modified [2][3]. We don't want to *validate* URI, we just want to lowercase
  *    what is supposed to be lowercased.
  *
- * So, to be conservative, this functions:
+ * So, to be conservative, this function:
  *  - lowercases the scheme
  *  - does not lowercase anything else on "stuff:" URI
  *  - tries to lowercase only scheme and domain of "stuff://" URI
@@ -558,7 +565,7 @@ function yourls_esc_url( $url, $context = 'display', $protocols = array() ) {
  * @param string $url URL
  * @return string URL with lowercase scheme and protocol
  */
-function yourls_lowercase_scheme_domain( $url ) {
+function yourls_normalize_uri( $url ) {
     $scheme = yourls_get_protocol( $url );
 
     if ('' == $scheme) {
@@ -592,9 +599,14 @@ function yourls_lowercase_scheme_domain( $url ) {
     $lower = array();
     $lower['scheme'] = strtolower( $parts['scheme'] );
     if( isset( $parts['host'] ) ) {
-        $lower['host'] = strtolower( $parts['host'] );
-    } else {
-        $parts['host'] = '***';
+        // Convert domain to lowercase, with mb_ to preserve UTF8
+        $lower['host'] = mb_strtolower($parts['host']);
+        /**
+         * Convert IDN domains to their UTF8 form so that طارق.net and xn--mgbuq0c.net
+         * are considered the same. Explicitely mention option and variant to avoid notice
+         * on PHP 7.2 and 7.3
+         */
+         $lower['host'] = idn_to_utf8($lower['host'], IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);
     }
 
     $url = http_build_url($url, $lower);
@@ -655,7 +667,7 @@ function yourls_encodeURI( $url ) {
 		'%27' => '\'', '%28' => '(', '%29' => ')', '%23' => '#',
     ) );
 	// @TODO:
-	// Known limit: this will most likely break IDN URLs such as http://www.acad�mie-fran�aise.fr/
+	// Known limit: this will most likely break IDN URLs such as http://www.académie-française.fr/
 	// To fully support IDN URLs, advocate use of a plugin.
 	return yourls_apply_filter( 'encodeURI', $result, $url );
 }
@@ -718,3 +730,62 @@ function yourls_make_bookmarklet( $code ) {
     $book = new \Ozh\Bookmarkletgen\Bookmarkletgen;
     return $book->crunch( $code );
 }
+
+/**
+ * Return a timestamp, plus or minus the time offset if defined
+ *
+ * @since 1.7.10
+ * @param  string|int $timestamp  a timestamp
+ * @return int                    a timestamp, plus or minus offset if defined
+ */
+function yourls_get_timestamp( $timestamp ) {
+    $offset = yourls_get_time_offset();
+    $timestamp_offset = $timestamp + ($offset * 3600);
+
+    return yourls_apply_filter( 'get_timestamp', $timestamp_offset, $timestamp, $offset );
+}
+
+/**
+ * Get time offset, as defined in config, filtered
+ *
+ * @since 1.7.10
+ * @return int       Time offset
+ */
+function yourls_get_time_offset() {
+    $offset = defined('YOURLS_HOURS_OFFSET') ? (int)YOURLS_HOURS_OFFSET : 0;
+    return yourls_apply_filter( 'get_time_offset', $offset );
+}
+
+/**
+ * Return a date() format for a full date + time, filtered
+ *
+ * @since 1.7.10
+ * @param  string $format  Date format string
+ * @return string          Date format string
+ */
+function yourls_get_datetime_format( $format ) {
+    return yourls_apply_filter( 'get_datetime_format', (string)$format );
+}
+
+/**
+ * Return a date() format for date (no time), filtered
+ *
+ * @since 1.7.10
+ * @param  string $format  Date format string
+ * @return string          Date format string
+ */
+function yourls_get_date_format( $format ) {
+    return yourls_apply_filter( 'get_date_format', (string)$format );
+}
+
+/**
+ * Return a date() format for a time (no date), filtered
+ *
+ * @since 1.7.10
+ * @param  string $format  Date format string
+ * @return string          Date format string
+ */
+function yourls_get_time_format( $format ) {
+    return yourls_apply_filter( 'get_time_format', (string)$format );
+}
+

@@ -4,6 +4,54 @@ YOURLS Changelog
 _This file lists the main changes through all versions of YOURLS.  
 For a much more detailed list, simply refer to [commit messages](https://github.com/YOURLS/YOURLS/commits/master)._
 
+1.8.1
+---
+- fixed: upgrade procedure with MySQL 8 & table names containing dashes (#2844, #2846) 
+- fixed: function to make public some pages on private installs (#2859)
+- added: `all` hook to debug YOURLS and plugins (#2860)
+- improved: plugin inline documentation
+
+1.8
+---
+- fixed: support for PHP 8
+- removed : support for PHP prior to 7.2
+- improved: IDN domain, and UTF8 URLs and titles (aka Number One Issue Since Day One)
+- improved: timezone management
+- improved: YOURLS UI and logo, now in SVG
+- improved: several little things
+- fixed: several little bugs
+
+1.7.9
+---
+- improved: compatibility of YOURLS with proxies and reversed proxies
+- improved: accept timestamped signature in API requests with [arbitrary hash](https://github.com/YOURLS/YOURLS/wiki/PasswordlessAPI#use-other-hash-algorithms-than-md5)
+- improved: YOURLS pages are now located in `user/` and [documented](https://github.com/YOURLS/YOURLS/wiki/Pages)
+- improved: accessibility, with labels and aria tags in the main admin screen
+- fixed: various little things here and also there
+
+1.7.6
+---
+- improved: due to popular demand, "Random Keywords" is now a core plugin bundled with YOURLS
+- fixed: JSONP parameters now match the documentation, duh
+- fixed: various little things here and also there
+
+1.7.5
+---
+- fixed: long referrers or client name won't trigger errors
+- fixed: some little bugs
+
+1.7.4
+---
+- fixed: type juggling vulnerability in the API
+- improved: several little things and several little updates
+- dropped: PHP <= 5.5 support
+
+1.7.3
+---
+- improved: some little things
+- added: some hooks here and there to allow more pluginness
+- fixed: some little bugs
+- updated: jquery and some javascript stuff
 
 1.7.2
 ---

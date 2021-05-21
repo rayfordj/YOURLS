@@ -27,20 +27,22 @@ function yourls_check_database_version() {
 function yourls_get_database_version() {
 	// Allow plugins to short-circuit the whole function
 	$pre = yourls_apply_filter( 'shunt_get_database_version', false );
-	if ( false !== $pre )
+	if ( false !== $pre ) {
 		return $pre;
+    }
 
-	global $ydb;
-
-	return yourls_sanitize_version($ydb->mysql_version());
+	return yourls_sanitize_version(yourls_get_db()->mysql_version());
 }
 
 /**
- * Check if PHP > 5.3
+ * Check if PHP > 7.2
+ *
+ * As of 1.8 we advertise YOURLS as being 7.4+ but it should work on 7.2 (although untested)
+ * so we don't want to strictly enforce a limitation that may not be necessary.
  *
  */
 function yourls_check_php_version() {
-    return(defined('PHP_VERSION_ID') && PHP_VERSION_ID > 50300);
+    return version_compare( PHP_VERSION, '7.2.0', '>=' );
 }
 
 /**
@@ -70,7 +72,7 @@ function yourls_is_iis() {
  *
  */
 function yourls_create_htaccess() {
-	$host = parse_url( YOURLS_SITE );
+	$host = parse_url( yourls_get_yourls_site() );
 	$path = ( isset( $host['path'] ) ? $host['path'] : '' );
 
 	if ( yourls_is_iis() ) {
@@ -200,7 +202,7 @@ function yourls_create_sql_tables() {
         return $pre;
     }
 
-	global $ydb;
+	$ydb = yourls_get_db();
 
 	$error_msg = array();
 	$success_msg = array();
@@ -208,39 +210,39 @@ function yourls_create_sql_tables() {
 	// Create Table Query
 	$create_tables = array();
 	$create_tables[YOURLS_DB_TABLE_URL] =
-		'CREATE TABLE IF NOT EXISTS `'.YOURLS_DB_TABLE_URL.'` ('.
-		'`keyword` varchar(200) BINARY NOT NULL,'.
-		'`url` text BINARY NOT NULL,'.
-		'`title` text CHARACTER SET utf8,'.
-		'`timestamp` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,'.
-		'`ip` VARCHAR(41) NOT NULL,'.
-		'`clicks` INT(10) UNSIGNED NOT NULL,'.
-		' PRIMARY KEY  (`keyword`),'.
-		' KEY `timestamp` (`timestamp`),'.
-		' KEY `ip` (`ip`)'.
-		');';
+        'CREATE TABLE IF NOT EXISTS `'.YOURLS_DB_TABLE_URL.'` ('.
+         '`keyword` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT "",'.
+         '`url` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,'.
+         '`title` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,'.
+         '`timestamp` timestamp NOT NULL DEFAULT current_timestamp(),'.
+         '`ip` varchar(41) COLLATE utf8mb4_unicode_ci NOT NULL,'.
+         '`clicks` int(10) unsigned NOT NULL,'.
+         'PRIMARY KEY (`keyword`),'.
+         'KEY `ip` (`ip`),'.
+         'KEY `timestamp` (`timestamp`)'.
+        ') DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;';
 
 	$create_tables[YOURLS_DB_TABLE_OPTIONS] =
 		'CREATE TABLE IF NOT EXISTS `'.YOURLS_DB_TABLE_OPTIONS.'` ('.
 		'`option_id` bigint(20) unsigned NOT NULL auto_increment,'.
-		'`option_name` varchar(64) NOT NULL default "",'.
-		'`option_value` longtext NOT NULL,'.
+		'`option_name` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL default "",'.
+		'`option_value` longtext COLLATE utf8mb4_unicode_ci NOT NULL,'.
 		'PRIMARY KEY  (`option_id`,`option_name`),'.
 		'KEY `option_name` (`option_name`)'.
-		') AUTO_INCREMENT=1 ;';
+		') AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;';
 
 	$create_tables[YOURLS_DB_TABLE_LOG] =
 		'CREATE TABLE IF NOT EXISTS `'.YOURLS_DB_TABLE_LOG.'` ('.
 		'`click_id` int(11) NOT NULL auto_increment,'.
 		'`click_time` datetime NOT NULL,'.
-		'`shorturl` varchar(200) BINARY NOT NULL,'.
+		'`shorturl` varchar(100) BINARY NOT NULL,'.
 		'`referrer` varchar(200) NOT NULL,'.
 		'`user_agent` varchar(255) NOT NULL,'.
 		'`ip_address` varchar(41) NOT NULL,'.
 		'`country_code` char(2) NOT NULL,'.
 		'PRIMARY KEY  (`click_id`),'.
 		'KEY `shorturl` (`shorturl`)'.
-		') AUTO_INCREMENT=1 ;';
+		') AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;';
 
 
 	$create_table_count = 0;
