@@ -78,8 +78,8 @@ class YDB extends ExtendedPdo {
      * @param array  $options     Driver-specific options
      * @param array  $attributes  Attributes to set after a connection
      */
-    public function __construct($dsn, $user, $pass, $options, $attributes) {
-        parent::__construct($dsn, $user, $pass, $options, $attributes);
+    public function __construct($dsn, $user, $pass, $options) {
+        parent::__construct($dsn, $user, $pass, $options);
     }
 
     /**
@@ -140,7 +140,8 @@ class YDB extends ExtendedPdo {
      */
     public function connect_to_DB() {
         try {
-            $this->connect();
+            list($dsn, $_user, $_pwd, $_opt, $_queries) = $this->args;
+            $this->connect($dsn);
         } catch ( \Exception $e ) {
             $this->dead_or_error($e);
         }
@@ -157,16 +158,18 @@ class YDB extends ExtendedPdo {
      */
     public function dead_or_error(\Exception $exception) {
         // Use any /user/db_error.php file
-        if( file_exists( YOURLS_USERDIR . '/db_error.php' ) ) {
-            include_once( YOURLS_USERDIR . '/db_error.php' );
-            die();
+        $file = YOURLS_USERDIR . '/db_error.php';
+        if(file_exists($file)) {
+            if(yourls_include_file_sandbox( $file ) === true) {
+                die();
+            }
         }
 
         $message  = yourls__( 'Incorrect DB config, or could not connect to DB' );
         $message .= '<br/>' . get_class($exception) .': ' . $exception->getMessage();
-
         yourls_die( yourls__( $message ), yourls__( 'Fatal error' ), 503 );
         die();
+
     }
 
     /**
@@ -192,6 +195,7 @@ class YDB extends ExtendedPdo {
 
     /**
      * @param string $context
+     * @return void
      */
     public function set_html_context($context) {
         $this->context = $context;
@@ -209,6 +213,7 @@ class YDB extends ExtendedPdo {
     /**
      * @param string $name
      * @param mixed  $value
+     * @return void
      */
     public function set_option($name, $value) {
         $this->option[$name] = $value;
@@ -232,6 +237,7 @@ class YDB extends ExtendedPdo {
 
     /**
      * @param string $name
+     * @return void
      */
     public function delete_option($name) {
         unset($this->option[$name]);
@@ -243,6 +249,7 @@ class YDB extends ExtendedPdo {
     /**
      * @param string $keyword
      * @param mixed  $infos
+     * @return void
      */
     public function set_infos($keyword, $infos) {
         $this->infos[$keyword] = $infos;
@@ -266,6 +273,7 @@ class YDB extends ExtendedPdo {
 
     /**
      * @param string $keyword
+     * @return void
      */
     public function delete_infos($keyword) {
         unset($this->infos[$keyword]);
@@ -287,6 +295,7 @@ class YDB extends ExtendedPdo {
 
     /**
      * @param array $plugins
+     * @return void
      */
     public function set_plugins(array $plugins) {
         $this->plugins = $plugins;
@@ -294,6 +303,7 @@ class YDB extends ExtendedPdo {
 
     /**
      * @param string $plugin  plugin filename
+     * @return void
      */
     public function add_plugin($plugin) {
         $this->plugins[] = $plugin;
@@ -301,6 +311,7 @@ class YDB extends ExtendedPdo {
 
     /**
      * @param string $plugin  plugin filename
+     * @return void
      */
     public function remove_plugin($plugin) {
         unset($this->plugins[$plugin]);
@@ -318,6 +329,7 @@ class YDB extends ExtendedPdo {
 
     /**
      * @param array $pages
+     * @return void
      */
     public function set_plugin_pages(array $pages) {
         $this->plugin_pages = $pages;
@@ -327,6 +339,7 @@ class YDB extends ExtendedPdo {
      * @param string   $slug
      * @param string   $title
      * @param callable $function
+     * @return void
      */
     public function add_plugin_page( $slug, $title, $function ) {
         $this->plugin_pages[ $slug ] = [
@@ -338,6 +351,7 @@ class YDB extends ExtendedPdo {
 
     /**
      * @param string $slug
+     * @return void
      */
     public function remove_plugin_page( $slug ) {
         unset( $this->plugin_pages[ $slug ] );
@@ -409,59 +423,4 @@ class YDB extends ExtendedPdo {
         return $version;
     }
 
-    /**
-     * Deprecated properties since 1.7.3, unused in 3rd party plugins as far as I know
-     *
-     * $ydb->DB_driver
-     * $ydb->captured_errors
-     * $ydb->dbh
-     * $ydb->result
-     * $ydb->rows_affected
-     * $ydb->show_errors
-     */
-
-    /**
-     * Deprecated functions since 1.7.3
-     */
-
-    // @codeCoverageIgnoreStart
-
-    public function escape($string) {
-        yourls_deprecated_function( '$ydb->'.__FUNCTION__, '1.7.3', 'PDO' );
-        // This will escape using PDO->quote(), but then remove the enclosing quotes
-        return substr($this->quote($string), 1, -1);
-    }
-
-    public function get_col($query) {
-        yourls_deprecated_function( '$ydb->'.__FUNCTION__, '1.7.3', 'PDO' );
-        yourls_debug_log('LEGACY SQL: '.$query);
-        return $this->fetchCol($query);
-    }
-
-    public function get_results($query) {
-        yourls_deprecated_function( '$ydb->'.__FUNCTION__, '1.7.3', 'PDO' );
-        yourls_debug_log('LEGACY SQL: '.$query);
-        $stm = parent::query($query);
-        return($stm->fetchAll(PDO::FETCH_OBJ));
-    }
-
-    public function get_row($query) {
-        yourls_deprecated_function( '$ydb->'.__FUNCTION__, '1.7.3', 'PDO' );
-        yourls_debug_log('LEGACY SQL: '.$query);
-        $row = $this->fetchObjects($query);
-        return isset($row[0]) ? $row[0] : null;
-    }
-
-    public function get_var($query) {
-        yourls_deprecated_function( '$ydb->'.__FUNCTION__, '1.7.3', 'PDO' );
-        yourls_debug_log('LEGACY SQL: '.$query);
-        return $this->fetchValue($query);
-    }
-
-    public function query($query, ...$unused) {
-        yourls_deprecated_function( '$ydb->'.__FUNCTION__, '1.7.3', 'PDO' );
-        yourls_debug_log('LEGACY SQL: '.$query);
-        return $this->fetchAffected($query);
-    }
-    // @codeCoverageIgnoreEnd
 }

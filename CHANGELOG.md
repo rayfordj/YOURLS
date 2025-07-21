@@ -4,6 +4,70 @@ YOURLS Changelog
 _This file lists the main changes through all versions of YOURLS.  
 For a much more detailed list, simply refer to [commit messages](https://github.com/YOURLS/YOURLS/commits/master)._
 
+1.10.1
+---
+- fixed: sandbox exceptions when disabling plugins (#3893)
+- fixed: stats date calculation are now correct (#3895)
+- fixed: unexpected warning raised on login page
+- removed: unsupported installation cases with Composer
+
+1.10.0
+---
+- added: Support PHP 8.3 & 8.4
+- removed: Support for PHP prior to 8.1 which is now minimal requirement
+- changed: Ensure all `statusCode`/`errorCode` API values are strings (#3756)
+- fixed: Results with 0 clicks on search (#3589)
+- fixed: Upgrade Aura.SQL to fix PHP 8.4 compatibility (#3852)
+- fixed: login page accessibility (#3660)
+- fixed: MySQL 8+ compatibility (#3828)
+- changed: Upgrade dependencies
+- changed: Update GeoIP DB
+- changed: Update certificates
+
+1.9.2
+---
+- added: Support PHP 8.2 (#3474)
+- improved: Googlebot indexing now filterable for plugins, for your SEO needs (#3517)
+- improved: Use safe sandbox for all included files (#3478)
+- fixed: bookmarklets with URL containing special chars (#3527)
+- fixed: unwanted cookies could interfere with YOURLS (#3516)
+- fixed: cosmetic bugs in the admin interface (#3485, #3431, #3518)
+- fixed: support usernames containing brackets (#3365)
+- updated: third party libs and binaries
+
+1.9.1
+---
+- fixed: error `Undefined constant "intval"` when upgrading (#3332)
+- fixed: warnings on PHP 8.1 (#3317)
+- fixed: incorrect HTTP status header with the API when shortening a duplicate (#3355)
+- fixed: no hyphen in random keywords (#3353)
+- added: required/suggested PHP extensions in composer.json (#3339)
+- updated: third party libs and binaries
+
+1.9
+---
+- removed : support for PHP prior to 7.4
+- improved: the API plugin with more plugin functions (#3281), a sandbox and a plugin uninstall procedure (#3282)
+- improved: inline documentation, [online documentation](https://docs.yourls.org/) and unit tests
+- improved: concurrency during mass shortening (#3233)
+- improved: minor security fixes - sanitize step name during upgrade (#3055),
+    nonce on the logout link (#3264), salt cookie with newer hash (#3278)
+- improved: Remove ozh/phpass library and use native PHP password_* functions (#3232)
+- added: more hooks in the admin view & search (#3265)
+- fixed: incorrect notice when "prefix and shorten" while not logged in (#3189)
+- fixed: UI sometimes not responsive after editing a URL (#3244)
+
+1.8.2
+---
+- fixed: display SVG logo for IE 11 (#2864)
+- fixed (again) : DB upgrade procedure (#2933)
+- fixed: cosmetic issue with Docker falsely warning about unencrypted password (#3040)
+- improved: minor security improvements - iframes clickjacking and login nonce (#3034), potential XSS (#3041)
+- improved: SSL support for proxies (#3044)
+- improved: inline documentation and unit tests
+- added: more filters in admin pages (#2912), HTTP requests (#2951), to deal with user defined consts (#3048)
+- added: documentation for API action "version" (#2957)
+
 1.8.1
 ---
 - fixed: upgrade procedure with MySQL 8 & table names containing dashes (#2844, #2846) 
@@ -24,8 +88,8 @@ For a much more detailed list, simply refer to [commit messages](https://github.
 1.7.9
 ---
 - improved: compatibility of YOURLS with proxies and reversed proxies
-- improved: accept timestamped signature in API requests with [arbitrary hash](https://github.com/YOURLS/YOURLS/wiki/PasswordlessAPI#use-other-hash-algorithms-than-md5)
-- improved: YOURLS pages are now located in `user/` and [documented](https://github.com/YOURLS/YOURLS/wiki/Pages)
+- improved: accept timestamped signature in API requests with [arbitrary hash](https://docs.yourls.org/guide/advanced/passwordless-api.html#use-other-hash-algorithms-than-md5)
+- improved: YOURLS pages are now located in `user/` and [documented](https://docs.yourls.org/guide/extend/pages.html)
 - improved: accessibility, with labels and aria tags in the main admin screen
 - fixed: various little things here and also there
 
@@ -65,7 +129,7 @@ For a much more detailed list, simply refer to [commit messages](https://github.
 1.7.1
 ---
 - added: compatibility with PHP 7
-- added: allow hooks with closures (see [Advanced Hook Syntax](https://github.com/YOURLS/YOURLS/wiki/Advanced-Hook-Syntax))
+- added: allow hooks with closures (see [Advanced Hook Syntax](https://docs.yourls.org/development/hooks.html))
 - improved: you can now search across all fields at once in the admin interface
 - improved: bookmarklets are now human readable in the PHP source, and minified on the fly
 - improved, still not perfect: support for URLs and page titles with encoded chars

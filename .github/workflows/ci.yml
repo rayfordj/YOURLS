@@ -13,19 +13,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.0']
-        phpunit: ['latest']
+        php: ['8.1', '8.2', '8.3', '8.4']
         include:
-        - php: '7.2'
-          phpunit: '8.5.13'
-        - php: '7.3'
-          phpunit: '8.5.13'
-        - php: '7.4'
-          phpunit: '8.5.13'
-          coverage: xdebug
-          flags: '--coverage-clover clover.xml'
-#         - php: '8.1'
-#           experimental: true
+          - php: '8.1'
+            coverage: xdebug
+            flags: '--coverage-clover clover.xml'
 
     services:
       mysql:
@@ -36,17 +28,19 @@ jobs:
           MYSQL_ALLOW_EMPTY_PASSWORD: false
           MYSQL_ROOT_PASSWORD: secret
           MYSQL_DATABASE: yourls_tests
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+          MARIADB_MYSQL_LOCALHOST_USER: 1
+          MARIADB_MYSQL_LOCALHOST_GRANTS: USAGE
+        options: --health-cmd="healthcheck.sh --su-mysql --connect --innodb_initialized" --health-interval=10s --health-timeout=5s --health-retries=3
 
     steps:
-    - uses: actions/checkout@v2.3.4
+    - uses: actions/checkout@v4
 
     - name: Use PHP ${{ matrix.php }}
-      uses: shivammathur/setup-php@2.11.0
+      uses: shivammathur/setup-php@2.34.1
       with:
         php-version: ${{ matrix.php }}
         extensions: mbstring, curl, zip, dom, simplexml, intl, pdo_mysql
-        tools: phpunit:${{ matrix.phpunit }}
+        tools: phpunit
         coverage: ${{ matrix.coverage }}
 
     # - name: Validate composer.json and composer.lock
@@ -77,11 +71,6 @@ jobs:
         cp tests/data/config/yourls-tests-config-ci.php user/config.php
 
     - name: Test
-      run: phpunit --configuration phpunit.xml.dist ${{ matrix.flags }}
+      run: phpunit --configuration phpunit.xml.dist --testdox --display-deprecations --display-notices --display-warnings --display-errors ${{ matrix.flags }}
       env:
         DB_PORT: ${{ job.services.mysql.ports['3306'] }}
-
-    - name: Upload Scrutinizer coverage
-      uses: sudo-bot/action-scrutinizer@latest
-      with:
-        cli-args: "--format=php-clover clover.xml"

@@ -51,9 +51,12 @@ class AdminParams
      */
     public function __construct()
     {
-        $this->possible_search_params = ['all', 'keyword', 'url', 'title', 'ip'];
-        $this->possible_sort_params   = ['keyword', 'url', 'title', 'ip', 'timestamp', 'clicks'];
-        $this->params_translations    = [
+        // Cast return values of yourls_apply_filter() to array in case a hook would incorrectly return something else
+        $this->possible_search_params = (array)yourls_apply_filter('admin_params_possible_search',
+            ['all', 'keyword', 'url', 'title', 'ip']);
+        $this->possible_sort_params   = (array)yourls_apply_filter('admin_params_possible_sort',
+            ['keyword', 'url', 'title', 'ip', 'timestamp', 'clicks']);
+        $this->params_translations    = (array)yourls_apply_filter('admin_params_possible_translations',[
             'all'       => yourls__('All fields'),
             'keyword'   => yourls__('Short URL'),
             'url'       => yourls__('URL'),
@@ -61,8 +64,9 @@ class AdminParams
             'ip'        => yourls__('IP Address'),
             'timestamp' => yourls__('Date'),
             'clicks'    => yourls__('Clicks'),
-        ];
-        $this->possible_date_sorting  = ['before', 'after', 'between'];
+        ]);
+        $this->possible_date_sorting  = (array)yourls_apply_filter('admin_params_possible_date_sort',
+            ['before', 'after', 'between']);
     }
 
     /**
@@ -152,7 +156,7 @@ class AdminParams
      *
      * @since 1.8.2
      *
-     * @return mixed
+     * @return string
      */
     public function get_sort_by(): string
     {
@@ -218,7 +222,7 @@ class AdminParams
     public function get_click_limit()
     {
         // @hook Default link click threshold (unset)
-        return (isset($_GET['click_limit']) && intval($_GET['click_limit'])) ?
+        return (!empty($_GET['click_limit']) && intval($_GET['click_limit']) >= 0) ?
             intval($_GET['click_limit']) : yourls_apply_filter('admin_view_click_limit', '');
     }
 

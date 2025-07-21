@@ -8,10 +8,10 @@
  */
 namespace Aura\Sql;
 
-use Aura\Sql\Exception;
 use Aura\Sql\Parser\ParserInterface;
 use Aura\Sql\Profiler\ProfilerInterface;
 use BadMethodCallException;
+use Generator;
 use PDO;
 use PDOStatement;
 
@@ -29,10 +29,10 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      *
      * The internal PDO connection.
      *
-     * @var PDO
+     * @var PDO|null
      *
      */
-    protected $pdo;
+    protected ?PDO $pdo = null;
 
     /**
      *
@@ -41,7 +41,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @var ProfilerInterface
      *
      */
-    protected $profiler;
+    protected ProfilerInterface $profiler;
 
     /**
      *
@@ -50,7 +50,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @var ParserInterface
      *
      */
-    protected $parser;
+    protected ParserInterface $parser;
 
     /**
      *
@@ -59,7 +59,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @var string
      *
      */
-    protected $quoteNamePrefix = '"';
+    protected string $quoteNamePrefix = '"';
 
     /**
      *
@@ -68,7 +68,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @var string
      *
      */
-    protected $quoteNameSuffix = '"';
+    protected string $quoteNameSuffix = '"';
 
     /**
      *
@@ -77,7 +77,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @var string
      *
      */
-    protected $quoteNameEscapeFind = '"';
+    protected string $quoteNameEscapeFind = '"';
 
     /**
      *
@@ -86,7 +86,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @var string
      *
      */
-    protected $quoteNameEscapeRepl = '""';
+    protected string $quoteNameEscapeRepl = '""';
 
     /**
      *
@@ -103,13 +103,13 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @throws BadMethodCallException when the method does not exist.
      *
      */
-    public function __call($name, array $arguments)
+    public function __call(string $name, array $arguments)
     {
-        $this->connect();
+        $this->lazyConnect();
 
         if (! method_exists($this->pdo, $name)) {
             $class = get_class($this);
-            $message = "Class '{$class}' does not have a method '{$name}'";
+            $message = "Class '$class' does not have a method '$name'";
             throw new BadMethodCallException($message);
         }
 
@@ -125,9 +125,9 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @see http://php.net/manual/en/pdo.begintransaction.php
      *
      */
-    public function beginTransaction()
+    public function beginTransaction(): bool
     {
-        $this->connect();
+        $this->lazyConnect();
         $this->profiler->start(__FUNCTION__);
         $result = $this->pdo->beginTransaction();
         $this->profiler->finish();
@@ -143,9 +143,9 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @see http://php.net/manual/en/pdo.commit.php
      *
      */
-    public function commit()
+    public function commit(): bool
     {
-        $this->connect();
+        $this->lazyConnect();
         $this->profiler->start(__FUNCTION__);
         $result = $this->pdo->commit();
         $this->profiler->finish();
@@ -156,30 +156,28 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      *
      * Connects to the database.
      *
-     * @return null
-     *
+     * @return void
      */
-    abstract public function connect();
+    abstract public function lazyConnect(): void;
 
     /**
      *
      * Disconnects from the database.
      *
-     * @return null
-     *
+     * @return void
      */
-    abstract public function disconnect();
+    abstract public function disconnect(): void;
 
     /**
      *
      * Gets the most recent error code.
      *
-     * @return mixed
+     * @return string|null
      *
      */
-    public function errorCode()
+    public function errorCode(): ?string
     {
-        $this->connect();
+        $this->lazyConnect();
         return $this->pdo->errorCode();
     }
 
@@ -190,9 +188,9 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @return array
      *
      */
-    public function errorInfo()
+    public function errorInfo(): array
     {
-        $this->connect();
+        $this->lazyConnect();
         return $this->pdo->errorInfo();
     }
 
@@ -202,14 +200,14 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      *
      * @param string $statement The SQL statement to prepare and execute.
      *
-     * @return int The number of affected rows.
+     * @return int|false The number of affected rows.
      *
      * @see http://php.net/manual/en/pdo.exec.php
      *
      */
-    public function exec($statement)
+    public function exec(string $statement): int|false
     {
-        $this->connect();
+        $this->lazyConnect();
         $this->profiler->start(__FUNCTION__);
         $affectedRows = $this->pdo->exec($statement);
         $this->profiler->finish($statement);
@@ -227,7 +225,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @return int
      *
      */
-    public function fetchAffected($statement, array $values = [])
+    public function fetchAffected(string $statement, array $values = []): int
     {
         $sth = $this->perform($statement, $values);
         return $sth->rowCount();
@@ -245,7 +243,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @return array
      *
      */
-    public function fetchAll($statement, array $values = [])
+    public function fetchAll(string $statement, array $values = []): array
     {
         $sth = $this->perform($statement, $values);
         return $sth->fetchAll(self::FETCH_ASSOC);
@@ -267,7 +265,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @return array
      *
      */
-    public function fetchAssoc($statement, array $values = [])
+    public function fetchAssoc(string $statement, array $values = []): array
     {
         $sth  = $this->perform($statement, $values);
         $data = [];
@@ -288,7 +286,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @return array
      *
      */
-    public function fetchCol($statement, array $values = [])
+    public function fetchCol(string $statement, array $values = []): array
     {
         $sth = $this->perform($statement, $values);
         return $sth->fetchAll(self::FETCH_COLUMN, 0);
@@ -310,10 +308,10 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      *
      */
     public function fetchGroup(
-        $statement,
+        string $statement,
         array $values = [],
-        $style = PDO::FETCH_COLUMN
-    ) {
+        int $style = PDO::FETCH_COLUMN
+    ): array {
         $sth = $this->perform($statement, $values);
         return $sth->fetchAll(self::FETCH_GROUP | $style);
     }
@@ -342,11 +340,11 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      *
      */
     public function fetchObject(
-        $statement,
+        string $statement,
         array $values = [],
-        $class = 'stdClass',
+        string $class = 'stdClass',
         array $args = []
-    ) {
+    ): object|false {
         $sth = $this->perform($statement, $values);
 
         if (! empty($args)) {
@@ -382,11 +380,11 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      *
      */
     public function fetchObjects(
-        $statement,
+        string $statement,
         array $values = [],
-        $class = 'stdClass',
+        string $class = 'stdClass',
         array $args = []
-    ) {
+    ): array {
         $sth = $this->perform($statement, $values);
 
         if (! empty($args)) {
@@ -404,10 +402,10 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      *
      * @param array $values Values to bind to the query.
      *
-     * @return array
+     * @return array|false
      *
      */
-    public function fetchOne($statement, array $values = [])
+    public function fetchOne(string $statement, array $values = []): array|false
     {
         $sth = $this->perform($statement, $values);
         return $sth->fetch(self::FETCH_ASSOC);
@@ -425,7 +423,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @return array
      *
      */
-    public function fetchPairs($statement, array $values = [])
+    public function fetchPairs(string $statement, array $values = []): array
     {
         $sth = $this->perform($statement, $values);
         return $sth->fetchAll(self::FETCH_KEY_PAIR);
@@ -442,7 +440,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @return mixed
      *
      */
-    public function fetchValue($statement, array $values = [])
+    public function fetchValue(string $statement, array $values = []): mixed
     {
         $sth = $this->perform($statement, $values);
         return $sth->fetchColumn(0);
@@ -455,7 +453,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @return ParserInterface
      *
      */
-    public function getParser()
+    public function getParser(): ParserInterface
     {
         return $this->parser;
     }
@@ -467,7 +465,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @return \PDO
      *
      */
-    public function getPdo()
+    public function getPdo(): PDO
     {
         return $this->pdo;
     }
@@ -479,7 +477,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @return ProfilerInterface
      *
      */
-    public function getProfiler()
+    public function getProfiler(): ProfilerInterface
     {
         return $this->profiler;
     }
@@ -493,9 +491,9 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @see http://php.net/manual/en/pdo.intransaction.php
      *
      */
-    public function inTransaction()
+    public function inTransaction(): bool
     {
-        $this->connect();
+        $this->lazyConnect();
         $this->profiler->start(__FUNCTION__);
         $result = $this->pdo->inTransaction();
         $this->profiler->finish();
@@ -509,7 +507,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @return bool
      *
      */
-    public function isConnected()
+    public function isConnected(): bool
     {
         return (bool) $this->pdo;
     }
@@ -518,17 +516,16 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      *
      * Returns the last inserted autoincrement sequence value.
      *
-     * @param string $name The name of the sequence to check; typically needed
+     * @param string|null $name The name of the sequence to check; typically needed
      * only for PostgreSQL, where it takes the form of `<table>_<column>_seq`.
      *
-     * @return string
+     * @return string|false
      *
      * @see http://php.net/manual/en/pdo.lastinsertid.php
-     *
      */
-    public function lastInsertId($name = null)
+    public function lastInsertId(?string $name = null): string|false
     {
-        $this->connect();
+        $this->lazyConnect();
         $this->profiler->start(__FUNCTION__);
         $result = $this->pdo->lastInsertId($name);
         $this->profiler->finish();
@@ -547,12 +544,13 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      *
      * @return PDOStatement
      *
+     * @throws \Aura\Sql\Exception\CannotBindValue
      * @see quote()
      *
      */
-    public function perform($statement, array $values = [])
+    public function perform(string $statement, array $values = []): PDOStatement
     {
-        $this->connect();
+        $this->lazyConnect();
         $sth = $this->prepareWithValues($statement, $values);
         $this->profiler->start(__FUNCTION__);
         $sth->execute();
@@ -564,20 +562,20 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      *
      * Prepares an SQL statement for execution.
      *
-     * @param string $statement The SQL statement to prepare for execution.
+     * @param string $query The SQL statement to prepare for execution.
      *
      * @param array $options Set these attributes on the returned
      * PDOStatement.
      *
-     * @return PDOStatement
+     * @return PDOStatement|false
      *
      * @see http://php.net/manual/en/pdo.prepare.php
      *
      */
-    public function prepare($statement, $options = [])
+    public function prepare(string $query, array $options = []): PDOStatement|false
     {
-        $this->connect();
-        $sth = $this->pdo->prepare($statement, $options);
+        $this->lazyConnect();
+        $sth = $this->pdo->prepare($query, $options);
         return $sth;
     }
 
@@ -600,10 +598,11 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      *
      * @return PDOStatement
      *
+     * @throws \Aura\Sql\Exception\CannotBindValue
      * @see http://php.net/manual/en/pdo.prepare.php
      *
      */
-    public function prepareWithValues($statement, array $values = [])
+    public function prepareWithValues(string $statement, array $values = []): PDOStatement
     {
         // if there are no values to bind ...
         if (empty($values)) {
@@ -611,11 +610,11 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
             return $this->prepare($statement);
         }
 
-        $this->connect();
+        $this->lazyConnect();
 
         // rebuild the statement and values
         $parser = clone $this->parser;
-        list ($statement, $values) = $parser->rebuild($statement, $values);
+        list($statement, $values) = $parser->rebuild($statement, $values);
 
         // prepare the statement
         $sth = $this->pdo->prepare($statement);
@@ -633,20 +632,22 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      *
      * Queries the database and returns a PDOStatement.
      *
-     * @param string $statement The SQL statement to prepare and execute.
+     * @param string $query The SQL statement to prepare and execute.
      *
-     * @param mixed ...$fetch Optional fetch-related parameters.
+     * @param int|null $fetchMode
      *
-     * @return PDOStatement
+     * @param mixed ...$fetch_mode_args Optional fetch-related parameters.
+     *
+     * @return PDOStatement|false
      *
      * @see http://php.net/manual/en/pdo.query.php
      *
      */
-    public function query($statement, ...$fetch)
+    public function query(string $query, ?int $fetchMode = null, mixed ...$fetch_mode_args): PDOStatement|false
     {
-        $this->connect();
+        $this->lazyConnect();
         $this->profiler->start(__FUNCTION__);
-        $sth = $this->pdo->query($statement, ...$fetch);
+        $sth = $this->pdo->query($query, $fetchMode, ...$fetch_mode_args);
         $this->profiler->finish($sth->queryString);
         return $sth;
     }
@@ -658,18 +659,20 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * This differs from `PDO::quote()` in that it will convert an array into
      * a string of comma-separated quoted values.
      *
-     * @param mixed $value The value to quote.
+     * @param string|int|array|float|null $value The value to quote.
      *
      * @param int $type A data type hint for the database driver.
      *
-     * @return string The quoted value.
+     * @return string|false The quoted value or false if the driver does not support quoting in this way.
      *
      * @see http://php.net/manual/en/pdo.quote.php
      *
      */
-    public function quote($value, $type = self::PARAM_STR)
+    public function quote(string|int|array|float|null $value, int $type = self::PARAM_STR): string|false
     {
-        $this->connect();
+        $this->lazyConnect();
+
+        $value = $value ?? "";
 
         // non-array quoting
         if (! is_array($value)) {
@@ -692,9 +695,9 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @return string The multi-part identifier name, quoted.
      *
      */
-    public function quoteName($name)
+    public function quoteName(string $name): string
     {
-        if (strpos($name, '.') === false) {
+        if (! str_contains($name, '.')) {
             return $this->quoteSingleName($name);
         }
 
@@ -716,7 +719,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @return string The quoted identifier name.
      *
      */
-    public function quoteSingleName($name)
+    public function quoteSingleName(string $name): string
     {
         $name = str_replace(
             $this->quoteNameEscapeFind,
@@ -737,9 +740,9 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @see http://php.net/manual/en/pdo.rollback.php
      *
      */
-    public function rollBack()
+    public function rollBack(): bool
     {
-        $this->connect();
+        $this->lazyConnect();
         $this->profiler->start(__FUNCTION__);
         $result = $this->pdo->rollBack();
         $this->profiler->finish();
@@ -753,7 +756,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @param ParserInterface $parser The Parser instance.
      *
      */
-    public function setParser(ParserInterface $parser)
+    public function setParser(ParserInterface $parser): void
     {
         $this->parser = $parser;
     }
@@ -765,7 +768,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @param ProfilerInterface $profiler The Profiler instance.
      *
      */
-    public function setProfiler(ProfilerInterface $profiler)
+    public function setProfiler(ProfilerInterface $profiler): void
     {
         $this->profiler = $profiler;
     }
@@ -781,7 +784,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @return \Generator
      *
      */
-    public function yieldAll($statement, array $values = [])
+    public function yieldAll(string $statement, array $values = []): Generator
     {
         $sth = $this->perform($statement, $values);
         while ($row = $sth->fetch(self::FETCH_ASSOC)) {
@@ -800,7 +803,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @return \Generator
      *
      */
-    public function yieldAssoc($statement, array $values = [])
+    public function yieldAssoc(string $statement, array $values = []): Generator
     {
         $sth = $this->perform($statement, $values);
         while ($row = $sth->fetch(self::FETCH_ASSOC)) {
@@ -820,7 +823,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @return \Generator
      *
      */
-    public function yieldCol($statement, array $values = [])
+    public function yieldCol(string $statement, array $values = []): Generator
     {
         $sth = $this->perform($statement, $values);
         while ($row = $sth->fetch(self::FETCH_NUM)) {
@@ -851,11 +854,11 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      *
      */
     public function yieldObjects(
-        $statement,
+        string $statement,
         array $values = [],
-        $class = 'stdClass',
+        string $class = 'stdClass',
         array $args = []
-    ) {
+    ): Generator {
         $sth = $this->perform($statement, $values);
 
         if (empty($args)) {
@@ -881,7 +884,7 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @return \Generator
      *
      */
-    public function yieldPairs($statement, array $values = [])
+    public function yieldPairs(string $statement, array $values = []): Generator
     {
         $sth = $this->perform($statement, $values);
         while ($row = $sth->fetch(self::FETCH_NUM)) {
@@ -899,13 +902,13 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      *
      * @param mixed $val The value to bind to the statement.
      *
-     * @return boolean
+     * @return bool
      *
      * @throws Exception\CannotBindValue when the value to be bound is not
      * bindable (e.g., array, object, or resource).
      *
      */
-    protected function bindValue(PDOStatement $sth, $key, $val)
+    protected function bindValue(PDOStatement $sth, mixed $key, mixed $val): bool
     {
         if (is_int($val)) {
             return $sth->bindValue($key, $val, self::PARAM_INT);
@@ -938,11 +941,11 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @return ParserInterface
      *
      */
-    protected function newParser($driver)
+    protected function newParser(string $driver): ParserInterface
     {
         $class = 'Aura\Sql\Parser\\' . ucfirst($driver) . 'Parser';
         if (! class_exists($class)) {
-            $class = 'Aura\Sql\Parser\SqliteParser';
+            $class = 'Aura\Sql\Parser\SqliteParser';        
         }
         return new $class();
     }
@@ -953,10 +956,10 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      *
      * @param string $driver The PDO driver name.
      *
-     * @return null
+     * @return void
      *
      */
-    protected function setQuoteName($driver)
+    protected function setQuoteName(string $driver): void
     {
         switch ($driver) {
             case 'mysql':
@@ -985,11 +988,11 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * Retrieve a database connection attribute
      *
      * @param int $attribute
-     * @return mixed
+     * @return bool|int|string|array|null
      */
-    public function getAttribute($attribute)
+    public function getAttribute(int $attribute): bool|int|string|array|null
     {
-        $this->connect();
+        $this->lazyConnect();
         return $this->pdo->getAttribute($attribute);
     }
 
@@ -1001,9 +1004,9 @@ abstract class AbstractExtendedPdo extends PDO implements ExtendedPdoInterface
      * @param mixed $value
      * @return bool
      */
-    public function setAttribute($attribute, $value)
+    public function setAttribute(int $attribute, mixed $value): bool
     {
-        $this->connect();
+        $this->lazyConnect();
         return $this->pdo->setAttribute($attribute, $value);
     }
 }

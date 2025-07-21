@@ -5,10 +5,29 @@
  *
  * Note to devs : prefer update function names using the SQL version, eg yourls_update_to_506(),
  * rather than using the YOURLS version number, eg yourls_update_to_18(). This is to allow having
- * multiple SQL update during the dev cycle of the same Y0URLS version
+ * multiple SQL update during the dev cycle of the same YOURLS version
  *
+ * @param string|int $step
+ * @param string $oldver
+ * @param string $newver
+ * @param string|int $oldsql
+ * @param string|int $newsql
+ * @return void
  */
-function yourls_upgrade( $step, $oldver, $newver, $oldsql, $newsql ) {
+function yourls_upgrade($step, $oldver, $newver, $oldsql, $newsql ) {
+
+    /**
+     *  Sanitize input. Two notes :
+     *  - they should already be sanitized in the caller, eg admin/upgrade.php
+     *    (but hey, let's make sure)
+     *  - some vars may not be used at the moment
+     *    (and this is ok, they are here in case a future upgrade procedure needs them)
+     */
+    $step   = intval($step);
+    $oldsql = intval($oldsql);
+    $newsql = intval($newsql);
+    $oldver = yourls_sanitize_version($oldver);
+    $newver = yourls_sanitize_version($newver);
 
     yourls_maintenance_mode(true);
 
@@ -193,8 +212,8 @@ function yourls_upgrade_to_143( ) {
  */
 function yourls_upgrade_to_141( ) {
 	// Kill old cookies from 1.3 and prior
-	setcookie('yourls_username', null, time() - 3600 );
-	setcookie('yourls_password', null, time() - 3600 );
+	setcookie('yourls_username', '', time() - 3600 );
+	setcookie('yourls_password', '', time() - 3600 );
 	// alter table URL
 	yourls_alter_url_table_to_141();
 	// recreate the htaccess file if needed
@@ -387,7 +406,7 @@ function yourls_update_table_to_14() {
 	if( $count != $queries ) {
 		$success = false;
 		$num = $count - $queries;
-		echo "<p>$num error(s) occured while updating the URL table :(</p>";
+		echo "<p>$num error(s) occurred while updating the URL table :(</p>";
 	}
 
 	if ( $count == $chunk ) {
@@ -432,4 +451,3 @@ function yourls_clean_htaccess_for_14() {
 
 	return $result;
 }
-

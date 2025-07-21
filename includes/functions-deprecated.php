@@ -5,9 +5,93 @@
  *
  * Note to devs: when deprecating a function, move it here. Then check all the places
  * in core that might be using it, including core plugins.
+ *
+ * Usage :  yourls_deprecated_function( 'function_name', 'version', 'replacement' );
+ * Output:  "{function_name} is deprecated since version {version}! Use {replacement} instead."
+ *
+ * Usage :  yourls_deprecated_function( 'function_name', 'version' );
+ * Output:  "{function_name} is deprecated since version {version} with no alternative available."
+ *
+ * @see yourls_deprecated_function()
  */
 
 // @codeCoverageIgnoreStart
+
+/**
+ * Plugin activation sandbox
+ *
+ * @since 1.8.3
+ * @deprecated 1.9.2
+ * @param string $pluginfile Plugin filename (full path)
+ * @return string|true  string if error or true if success
+ */
+function yourls_activate_plugin_sandbox( $pluginfile ) {
+    yourls_deprecated_function( __FUNCTION__, '1.9.1', 'yourls_include_file_sandbox');
+    return yourls_include_file_sandbox($pluginfile);
+}
+
+/**
+ * Return current admin page, or null if not an admin page. Was not used anywhere.
+ *
+ * @return mixed string if admin page, null if not an admin page
+ * @since 1.6
+ * @deprecated 1.9.1
+ */
+function yourls_current_admin_page() {
+    yourls_deprecated_function( __FUNCTION__, '1.9.1' );
+    if( yourls_is_admin() ) {
+        $current = substr( yourls_get_request(), 6 );
+        if( $current === false )
+            $current = 'index.php'; // if current page is http://sho.rt/admin/ instead of http://sho.rt/admin/index.php
+
+        return $current;
+    }
+    return null;
+}
+
+/**
+ * PHP emulation of JS's encodeURI
+ *
+ * @link https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/encodeURI
+ * @deprecated 1.9.1
+ * @param string $url
+ * @return string
+ */
+function yourls_encodeURI($url) {
+    yourls_deprecated_function( __FUNCTION__, '1.9.1', '' );
+    // Decode URL all the way
+    $result = yourls_rawurldecode_while_encoded( $url );
+    // Encode once
+    $result = strtr( rawurlencode( $result ), array (
+        '%3B' => ';', '%2C' => ',', '%2F' => '/', '%3F' => '?', '%3A' => ':', '%40' => '@',
+        '%26' => '&', '%3D' => '=', '%2B' => '+', '%24' => '$', '%21' => '!', '%2A' => '*',
+        '%27' => '\'', '%28' => '(', '%29' => ')', '%23' => '#',
+    ) );
+    // @TODO:
+    // Known limit: this will most likely break IDN URLs such as http://www.académie-française.fr/
+    // To fully support IDN URLs, advocate use of a plugin.
+    return yourls_apply_filter( 'encodeURI', $result, $url );
+}
+
+/**
+ * Check if a file is a plugin file
+ *
+ * @deprecated 1.8.3
+ */
+function yourls_validate_plugin_file( $file ) {
+    yourls_deprecated_function( __FUNCTION__, '1.8.3', 'yourls_is_a_plugin_file' );
+    return yourls_is_a_plugin_file($file);
+}
+
+/**
+ * Return a unique(ish) hash for a string to be used as a valid HTML id
+ *
+ * @deprecated 1.8.3
+ */
+function yourls_string2htmlid( $string ) {
+    yourls_deprecated_function( __FUNCTION__, '1.8.3', 'yourls_unique_element_id' );
+    return yourls_apply_filter( 'string2htmlid', 'y'.abs( crc32( $string ) ) );
+}
 
 /**
  * Get search text from query string variables search_protocol, search_slashes and search

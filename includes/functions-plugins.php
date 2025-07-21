@@ -55,7 +55,7 @@
  *          )
  *  )
  *
- * @var array
+ * @var array $yourls_filters
  */
 if ( !isset( $yourls_filters ) ) {
     $yourls_filters = [];
@@ -65,7 +65,7 @@ if ( !isset( $yourls_filters ) ) {
  * This global var will collect 'done' actions with the following structure:
  * $yourls_actions['hook'] => number of time this action was done
  *
- * @var array
+ * @var array $yourls_actions
  */
 if ( !isset( $yourls_actions ) ) {
     $yourls_actions = [];
@@ -77,9 +77,9 @@ if ( !isset( $yourls_actions ) ) {
  * Typical use:
  *        yourls_add_filter('some_hook', 'function_handler_for_hook');
  *
- * @link  https://github.com/YOURLS/YOURLS/wiki/How-to-make-Plugins
+ * @link  https://docs.yourls.org/development/plugins.html
  * @param string   $hook           the name of the YOURLS element to be filtered or YOURLS action to be triggered
- * @param callback $function_name  the name of the function that is to be called.
+ * @param callable $function_name  the name of the function that is to be called.
  * @param int      $priority       optional. Used to specify the order in which the functions associated with a
  *                                 particular action are executed (default=10, lower=earlier execution, and functions
  *                                 with the same priority are executed in the order in which they were added to the
@@ -88,11 +88,12 @@ if ( !isset( $yourls_actions ) ) {
  *                                 provided).
  * @param string   $type
  * @global array   $yourls_filters Storage for all of the filters
+ * @return void
  */
 function yourls_add_filter( $hook, $function_name, $priority = 10, $accepted_args = NULL, $type = 'filter' ) {
     global $yourls_filters;
     // At this point, we cannot check if the function exists, as it may well be defined later (which is OK)
-    $id = yourls_filter_unique_id( $hook, $function_name, $priority );
+    $id = yourls_filter_unique_id($function_name);
 
     $yourls_filters[ $hook ][ $priority ][ $id ] = [
         'function'      => $function_name,
@@ -112,13 +113,14 @@ function yourls_add_filter( $hook, $function_name, $priority = 10, $accepted_arg
  * Typical use:
  *        yourls_add_action('some_hook', 'function_handler_for_hook');
  *
- * @link  https://github.com/YOURLS/YOURLS/wiki/How-to-make-Plugins
+ * @link  https://docs.yourls.org/development/plugins.html
  * @param string   $hook           The name of the action to which the $function_to_add is hooked.
- * @param callback $function_name  The name of the function you wish to be called.
+ * @param callable $function_name  The name of the function you wish to be called.
  * @param int      $priority       Optional. Used to specify the order in which the functions associated with a particular action
  *                                 are executed (default: 10). Lower numbers correspond with earlier execution, and functions
  *                                 with the same priority are executed in the order in which they were added to the action.
  * @param int      $accepted_args  Optional. The number of arguments the function accept (default 1).
+ * @return void
  */
 function yourls_add_action( $hook, $function_name, $priority = 10, $accepted_args = 1 ) {
 	yourls_add_filter( $hook, $function_name, $priority, $accepted_args, 'action' );
@@ -141,15 +143,12 @@ function yourls_add_action( $hook, $function_name, $priority = 10, $accepted_arg
  *     yourls_add_filter('my_hook_test', $class_instance_with_invoke_method);
  *     yourls_add_filter('my_hook_test', $my_callback_function);
  *
- * @link https://github.com/YOURLS/YOURLS/wiki/Advanced-Hook-Syntax
- * @param  string       $hook            Hook to which the function is attached
- * @param  string|array $function        Used for creating unique id
- * @param  int|bool     $priority        Used in counting how many hooks were applied.  If === false and $function is an object reference,
- *                                       we return the unique id only if it already has one, false otherwise.
+ * @link https://docs.yourls.org/development/hooks.html
+ * @param  string|array|object $function  The callable used in a filter or action.
  * @return string  unique ID for usage as array key
  */
-function yourls_filter_unique_id( $hook, $function, $priority ) {
-    // If function then just skip all of the tests and not overwrite the following.
+function yourls_filter_unique_id($function) {
+    // If given a string (function name)
     if ( is_string( $function ) ) {
         return $function;
     }
@@ -167,20 +166,12 @@ function yourls_filter_unique_id( $hook, $function, $priority ) {
         return spl_object_hash( $function[0] ).$function[1];
     }
 
-    // Static Calling
-    if ( is_string( $function[0] ) ) {
-        return $function[0].'::'.$function[1];
-    }
-
-    /**
-     * There is no other possible case as of PHP 7.2-8.0 callables. Still, we're leaving the final
-     * `if` block (which could be remove to simply `return $function[0].'::'.$function[1]`) for readability
-     * and understanding the logic.
-     */
+    // Last case, static Calling : $function[0] is a string (Class Name) and $function[1] is a string (Method Name)
+    return $function[0].'::'.$function[1];
 }
 
 /**
- * Performs a filtering operation on a YOURLS element or event.
+ * Performs a filtering operation on a value or an event.
  *
  * Typical use:
  *
@@ -192,12 +183,12 @@ function yourls_filter_unique_id( $hook, $function, $priority ) {
  *		yourls_apply_filter( 'yourls_event' );
  *      (see yourls_do_action() )
  *
- * Returns an element which may have been filtered by a filter.
+ * Returns a value which may have been modified by a filter.
  *
  * @global array $yourls_filters storage for all of the filters
  * @param string $hook the name of the YOURLS element or action
  * @param mixed $value the value of the element before filtering
- * @param bool $is_action true if the function is called by yourls_do_action()
+ * @param true|mixed $is_action true if the function is called by yourls_do_action() - otherwise may be the second parameter of an arbitrary number of parameters
  * @return mixed
  */
 function yourls_apply_filter( $hook, $value = '', $is_action = false ) {
@@ -222,6 +213,7 @@ function yourls_apply_filter( $hook, $value = '', $is_action = false ) {
     reset( $yourls_filters[ $hook ] );
     do {
         foreach ( (array)current( $yourls_filters[ $hook ] ) as $the_ ) {
+            $_value = '';
             if ( !is_null($the_[ 'function' ]) ) {
                 $args[ 1 ] = $value;
                 $count = $the_[ 'accepted_args' ];
@@ -247,6 +239,7 @@ function yourls_apply_filter( $hook, $value = '', $is_action = false ) {
  *
  * @param string $hook the name of the YOURLS action
  * @param mixed $arg action arguments
+ * @return void
  */
 function yourls_do_action( $hook, $arg = '' ) {
     global $yourls_actions, $yourls_filters;
@@ -299,13 +292,14 @@ function yourls_did_action( $hook ) {
  * Internal function used by yourls_do_action() and yourls_apply_filter() - not meant to be used from
  * outside these functions.
  * This is mostly a debugging function to understand the flow of events.
- * See https://github.com/YOURLS/YOURLS/wiki/Debugging-YOURLS to learn how to use the 'all' hook
+ * See https://docs.yourls.org/development/debugging.html to learn how to use the 'all' hook
  *
- * @link   https://github.com/YOURLS/YOURLS/wiki/Debugging-YOURLS
+ * @link   https://docs.yourls.org/development/debugging.html
  * @since  1.8.1
  * @param  string $type Either 'action' or 'filter'
  * @param  string $hook The hook name, eg 'plugins_loaded'
  * @param  mixed  $args Variable-length argument lists that were passed to the action or filter
+ * @return void
  */
 function yourls_call_all_hooks($type, $hook, ...$args) {
     global $yourls_filters;
@@ -340,14 +334,14 @@ function yourls_call_all_hooks($type, $hook, ...$args) {
  *
  * @global array $yourls_filters storage for all of the filters
  * @param string $hook The filter hook to which the function to be removed is hooked.
- * @param callback $function_to_remove The name of the function which should be removed.
+ * @param callable $function_to_remove The name of the function which should be removed.
  * @param int $priority optional. The priority of the function (default: 10).
  * @return bool Whether the function was registered as a filter before it was removed.
  */
 function yourls_remove_filter( $hook, $function_to_remove, $priority = 10 ) {
     global $yourls_filters;
 
-    $function_to_remove = yourls_filter_unique_id( $hook, $function_to_remove, $priority );
+    $function_to_remove = yourls_filter_unique_id($function_to_remove);
 
     $remove = isset( $yourls_filters[ $hook ][ $priority ][ $function_to_remove ] );
 
@@ -411,13 +405,38 @@ function yourls_remove_all_filters( $hook, $priority = false ) {
 }
 
 /**
+ * Return filters for a specific hook.
+ *
+ * If hook has filters (or actions, see yourls_has_action()), this will return an array priorities => callbacks.
+ * See the structure of yourls_filters on top of this file for details.
+ *
+ * @since 1.8.3
+ * @param string $hook The hook to retrieve filters for
+ * @return array
+ */
+function yourls_get_filters($hook) {
+    global $yourls_filters;
+    return $yourls_filters[$hook] ?? array();
+}
+
+/**
+ * Return actions for a specific hook.
+ *
+ * @since 1.8.3
+ * @param string $hook The hook to retrieve actions for
+ * @return array
+ */
+function yourls_get_actions($hook) {
+    return yourls_get_filters($hook);
+}
+/**
  * Check if any filter has been registered for a hook.
  *
  * @since 1.5
+ * @global array         $yourls_filters    storage for all of the filters
  * @param string         $hook              The name of the filter hook.
  * @param callable|false $function_to_check optional. If specified, return the priority of that function on this hook or false if not attached.
  * @return int|bool Optionally returns the priority on that hook for the specified function.
- * @global array         $yourls_filters    storage for all of the filters
  */
 function yourls_has_filter( $hook, $function_to_check = false ) {
     global $yourls_filters;
@@ -427,7 +446,7 @@ function yourls_has_filter( $hook, $function_to_check = false ) {
         return $has;
     }
 
-    if ( !$idx = yourls_filter_unique_id( $hook, $function_to_check, false ) ) {
+    if ( !$idx = yourls_filter_unique_id($function_to_check) ) {
         return false;
     }
 
@@ -438,6 +457,7 @@ function yourls_has_filter( $hook, $function_to_check = false ) {
     }
     return false;
 }
+
 
 /**
  * Check if any action has been registered for a hook.
@@ -574,8 +594,8 @@ function yourls_load_plugins() {
 
     $plugins = [];
     foreach ( $active_plugins as $key => $plugin ) {
-        if ( yourls_validate_plugin_file( YOURLS_PLUGINDIR.'/'.$plugin ) ) {
-            include_once( YOURLS_PLUGINDIR.'/'.$plugin );
+        $file = YOURLS_PLUGINDIR . '/' . $plugin;
+        if ( yourls_is_a_plugin_file($file) && yourls_include_file_sandbox( $file ) === true ) {
             $plugins[] = $plugin;
             unset( $active_plugins[ $key ] );
         }
@@ -585,7 +605,7 @@ function yourls_load_plugins() {
     yourls_get_db()->set_plugins( $plugins );
     $info = count( $plugins ).' activated';
 
-    // $active_plugins should be empty now, if not, a plugin could not be find: remove it
+    // $active_plugins should be empty now, if not, a plugin could not be found, or is erroneous : remove it
     $missing_count = count( $active_plugins );
     if ( $missing_count > 0 ) {
         yourls_update_option( 'active_plugins', $plugins );
@@ -602,13 +622,15 @@ function yourls_load_plugins() {
 }
 
 /**
- * Check if a file is safe for inclusion (well, "safe", no guarantee)
+ * Check if a file is a plugin file
+ *
+ * This doesn't check if the file is a valid PHP file, only that it's correctly named.
  *
  * @since 1.5
  * @param string $file Full pathname to a file
  * @return bool
  */
-function yourls_validate_plugin_file( $file ) {
+function yourls_is_a_plugin_file($file) {
     return false === strpos( $file, '..' )
            && false === strpos( $file, './' )
            && 'plugin.php' === substr( $file, -10 )
@@ -626,7 +648,7 @@ function yourls_activate_plugin( $plugin ) {
     // validate file
     $plugin = yourls_plugin_basename( $plugin );
     $plugindir = yourls_sanitize_filename( YOURLS_PLUGINDIR );
-    if ( !yourls_validate_plugin_file( $plugindir.'/'.$plugin ) ) {
+    if ( !yourls_is_a_plugin_file($plugindir . '/' . $plugin ) ) {
         return yourls__( 'Not a valid plugin file' );
     }
 
@@ -636,17 +658,11 @@ function yourls_activate_plugin( $plugin ) {
         return yourls__( 'Plugin already activated' );
     }
 
-    // attempt activation. TODO: uber cool fail proof sandbox like in WP.
-    ob_start();
-    include_once( $plugindir.'/'.$plugin );
-    if ( ob_get_length() > 0 ) {
-        // there was some output: error
-        // @codeCoverageIgnoreStart
-        $output = ob_get_clean();
-        return yourls_s( 'Plugin generated unexpected output. Error was: <br/><pre>%s</pre>', $output );
-        // @codeCoverageIgnoreEnd
+    // attempt activation.
+    $attempt = yourls_include_file_sandbox( $plugindir.'/'.$plugin );
+    if( $attempt !== true ) {
+        return yourls_s( 'Plugin generated unexpected output. Error was: <br/><pre>%s</pre>', $attempt );
     }
-    ob_end_clean();
 
     // so far, so good: update active plugin list
     $ydb->add_plugin( $plugin );
@@ -670,6 +686,20 @@ function yourls_deactivate_plugin( $plugin ) {
     // Check plugin is active
     if ( !yourls_is_active_plugin( $plugin ) ) {
         return yourls__( 'Plugin not active' );
+    }
+
+    // Check if we have an uninstall file - load if so
+    $uninst_file = YOURLS_PLUGINDIR . '/' . dirname($plugin) . '/uninstall.php';
+    $attempt = yourls_include_file_sandbox( $uninst_file );
+
+    // Check if we have an error to display
+    if ( is_string( $attempt ) ) {
+        $message = yourls_s( 'Loading %s generated unexpected output. Error was: <br/><pre>%s</pre>', $uninst_file, $attempt );
+        return( $message );
+    }
+
+    if ( $attempt === true ) {
+        define('YOURLS_UNINSTALL_PLUGIN', true);
     }
 
     // Deactivate the plugin
@@ -738,6 +768,7 @@ function yourls_list_plugin_admin_pages() {
  * @param string   $slug
  * @param string   $title
  * @param callable $function
+ * @return void
  */
 function yourls_register_plugin_page( $slug, $title, $function ) {
     yourls_get_db()->add_plugin_page( $slug, $title, $function );
@@ -748,6 +779,7 @@ function yourls_register_plugin_page( $slug, $title, $function ) {
  *
  * @since 1.5
  * @param string $plugin_page
+ * @return void
  */
 function yourls_plugin_admin_page( $plugin_page ) {
     // Check the plugin page is actually registered
@@ -818,6 +850,7 @@ function yourls_plugins_sort_callback( $plugin_a, $plugin_b ) {
  *
  * @codeCoverageIgnore
  * @since 1.5.1
+ * @return void
  */
 function yourls_shutdown() {
     yourls_do_action( 'shutdown' );

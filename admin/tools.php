@@ -98,7 +98,7 @@ STANDARD_SIMPLE;
                     if (r.short_url) {
                         prompt(r.message, r.short_url);
                     } else {
-                        alert('An error occured: ' + r.message);
+                        alert('An error occurred: ' + r.message);
                     }
                 };
                 sc.src = '$base_bookmarklet' + p + '&jsonp=yourls';
@@ -166,7 +166,7 @@ CUSTOM_STANDARD;
                         if (r.short_url) {
                             prompt(r.message, r.short_url);
                         } else {
-                            alert('An error occured: ' + r.message);
+                            alert('An error occurred: ' + r.message);
                         }
                     };
                     sc.src = '$base_bookmarklet' + p + '&k=' + k + '&jsonp=yourls';
@@ -247,7 +247,7 @@ TWITTER;
         ?>
 
         <?php $js_code = <<<TUMBLR
-        // Share on Tumlr
+        // Share on Tumblr
         var d = document,
             w = window,
             enc = encodeURIComponent,
@@ -326,7 +326,7 @@ $signature = md5( $timestamp . '<?php echo yourls_auth_signature(); ?>' );
 		<p><code><?php echo yourls_get_yourls_site(); ?>/yourls-api.php?timestamp=<strong>$timestamp</strong>&signature=<strong>$signature</strong>&action=...</code></p>
 		<p><?php yourls_e( 'Actual values:' ); ?><br/>
 		<tt><?php echo yourls_get_yourls_site(); ?>/yourls-api.php?timestamp=<?php echo $time; ?>&signature=<?php echo $sign; ?>&action=...</tt></p>
-		<p><?php yourls_se( 'This URL would be valid for only %s seconds', YOURLS_NONCE_LIFE ); ?></p>
+		<p><?php yourls_se( 'This URL would be valid for only %s seconds', yourls_get_nonce_life() ); ?></p>
 		</li>
 	</ul>
 
